@@ -94,6 +94,7 @@ class VanityMode(Enum):
     """Enum for different cosmetic pattern modes."""
     SIMPLE = "simple"
     PREFIX = "prefix"
+    SUFFIX = "suffix"
     FOUR_CHAR = "four_char"
     PREFIX_VANITY = "prefix_pattern"
     VANITY_2 = "pattern_2"
@@ -157,6 +158,7 @@ class VanityConfig:
     mode: VanityMode
     target_first_two: Optional[str] = None
     target_prefix: Optional[str] = None
+    target_suffix: Optional[str] = None
     vanity_length: int = 8
     max_iterations: Optional[int] = None
     max_time: Optional[int] = None
@@ -264,6 +266,8 @@ class KeyValidator:
             return KeyValidator._check_simple_pattern(public_hex_upper, config.target_first_two)
         elif config.mode == VanityMode.PREFIX:
             return KeyValidator._check_prefix_pattern(public_hex_upper, config.target_prefix)
+        elif config.mode == VanityMode.SUFFIX:
+            return KeyValidator._check_suffix_pattern(public_hex_upper, config.target_suffix)
         elif config.mode == VanityMode.VANITY_2:
             return KeyValidator._check_vanity_n_pattern(public_hex_upper, 2)
         elif config.mode == VanityMode.VANITY_4:
@@ -297,15 +301,23 @@ class KeyValidator:
         if not target_first_two:
             return True
         return public_hex[:2] == target_first_two.upper()
-    
+
     @staticmethod
     def _check_prefix_pattern(public_hex: str, target_prefix: Optional[str]) -> bool:
         """Check prefix pattern: key starts with specific prefix."""
         if not target_prefix:
             return False
         prefix_length = len(target_prefix)
-        return public_hex[:prefix_length] == target_prefix.upper()
-    
+        return public_hex[:prefix_length] == target_prefix.upper()    
+
+    @staticmethod
+    def _check_suffix_pattern(public_hex: str, target_prefix: Optional[str]) -> bool:
+        """Check suffix pattern: key starts with specific suffix."""
+        if not target_suffix:
+            return False
+        suffix_length = len(target_suffix)
+        return public_hex[(len(public_hex)-suffix_length):suffix_length] == target_suffix.upper()
+
     @staticmethod
     def _check_vanity_n_pattern(public_hex: str, n: int) -> bool:
         """Check if first n hex chars match last n hex chars or are palindromic."""
@@ -1119,6 +1131,8 @@ class ArgumentParser:
                           help='First two hex chars to search for (e.g., F8)')
         parser.add_argument('--prefix', type=str,
                           help='Hex prefix to search for (e.g., F8A1)')
+        parser.add_argument('--suffix', type=str,
+                          help='Hex suffix to search for (e.g., F8A1)')
         parser.add_argument('--simple', action='store_true',
                           help='Simple mode: only check first two hex chars (requires --first-two)')
         parser.add_argument('--four-char', action='store_true',
@@ -1219,6 +1233,7 @@ Examples:
   python meshcore_keygen.py --first-two F8     # Keys starting with F8 (auto-loads watchlist.txt)
   python meshcore_keygen.py --first-two F8 --simple  # Simple mode
   python meshcore_keygen.py --prefix F8A1      # Keys starting with F8A1
+  python meshcore_keygen.py --suffix F8A1      # Keys starting with F8A1
   python meshcore_keygen.py --four-char        # 4-char vanity (legacy mode)
   python meshcore_keygen.py --four-char --first-two F8  # 4-char + F8 start
   python meshcore_keygen.py --pattern-2         # 2-char cosmetic pattern
@@ -1573,6 +1588,11 @@ def calculate_pattern_probability(config: VanityConfig) -> float:
         # Prefix mode: key starts with specific prefix
         prefix_length = len(config.target_prefix) if config.target_prefix else 0
         return 1.0 / (16 ** prefix_length)  # 1 in 16^length chance
+    
+    elif config.mode == VanityMode.SUFFIX:
+        # Suffix mode: key starts with specific prefix
+        suffix_length = len(config.target_suffix) if config.target_suffix else 0
+        return 1.0 / (16 ** suffix_length)  # 1 in 16^length chance
     
     elif config.mode == VanityMode.VANITY_2:
         # 2-char vanity: first 2 hex == last 2 hex OR palindromic
@@ -1990,7 +2010,22 @@ def main():
         except ValueError:
             print("Error: --prefix must be a valid hex string (e.g., F8A1, 1234)")
             return
-    
+
+    if args.suffix:
+        # Validate prefix argument
+        if len(args.suffix) < 1:
+            print("Error: --suffix must be at least 1 character long.")
+            return
+        if len(args.suffix) > 8:
+            print("Error: --suffix cannot be longer than 8 characters.")
+            return
+        try:
+            # Try to convert to int to validate it's valid hex
+            int(args.suffix, 16)
+        except ValueError:
+            print("Error: --suffix must be a valid hex string (e.g., F8A1, 1234)")
+            return
+
     if args.workers is not None:
         # Validate workers argument
         if args.workers < 1:
