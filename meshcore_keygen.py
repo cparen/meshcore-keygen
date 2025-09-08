@@ -95,6 +95,7 @@ class VanityMode(Enum):
     SIMPLE = "simple"
     PREFIX = "prefix"
     SUFFIX = "suffix"
+    PREFIX_SUFFIX = "prefix_suffix"
     FOUR_CHAR = "four_char"
     PREFIX_VANITY = "prefix_pattern"
     VANITY_2 = "pattern_2"
@@ -268,6 +269,9 @@ class KeyValidator:
             return KeyValidator._check_prefix_pattern(public_hex_upper, config.target_prefix)
         elif config.mode == VanityMode.SUFFIX:
             return KeyValidator._check_suffix_pattern(public_hex_upper, config.target_suffix)
+        elif config.mode == VanityMode.PREFIX_SUFFIX:
+            return (KeyValidator._check_prefix_pattern(public_hex_upper, config.target_prefix)
+                and KeyValidator._check_suffix_pattern(public_hex_upper, config.target_suffix))
         elif config.mode == VanityMode.VANITY_2:
             return KeyValidator._check_vanity_n_pattern(public_hex_upper, 2)
         elif config.mode == VanityMode.VANITY_4:
@@ -1594,6 +1598,12 @@ def calculate_pattern_probability(config: VanityConfig) -> float:
         suffix_length = len(config.target_suffix) if config.target_suffix else 0
         return 1.0 / (16 ** suffix_length)  # 1 in 16^length chance
     
+    elif config.mode == VanityMode.PREFIX_SUFFIX:
+        # Combination of both prefix and suffix
+        prefix_length = len(config.target_prefix) if config.target_prefix else 0
+        suffix_length = len(config.target_suffix) if config.target_suffix else 0
+        return 1.0 / (16 ** (prefix_length + suffix_length))  # 1 in 16^length chance
+    
     elif config.mode == VanityMode.VANITY_2:
         # 2-char vanity: first 2 hex == last 2 hex OR palindromic
         # Each hex char has 16 possibilities, so 2 chars = 16^2 = 256
@@ -2169,6 +2179,9 @@ def create_config_from_args(args) -> VanityConfig:
     elif args.pattern_8:
         mode = VanityMode.VANITY_8
         vanity_length = 8
+    elif args.prefix and args.suffix:
+        # Using --prefix and --suffix together
+        mode=VanityMode.PREFIX_SUFFIX
     elif args.prefix:
         # If only --prefix is specified, use PREFIX mode (no pattern requirement)
         mode = VanityMode.PREFIX
