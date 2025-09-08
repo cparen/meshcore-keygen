@@ -311,12 +311,12 @@ class KeyValidator:
         return public_hex[:prefix_length] == target_prefix.upper()    
 
     @staticmethod
-    def _check_suffix_pattern(public_hex: str, target_prefix: Optional[str]) -> bool:
+    def _check_suffix_pattern(public_hex: str, target_suffix: Optional[str]) -> bool:
         """Check suffix pattern: key starts with specific suffix."""
         if not target_suffix:
             return False
         suffix_length = len(target_suffix)
-        return public_hex[(len(public_hex)-suffix_length):suffix_length] == target_suffix.upper()
+        return public_hex[-suffix_length:] == target_suffix.upper()
 
     @staticmethod
     def _check_vanity_n_pattern(public_hex: str, n: int) -> bool:
@@ -2012,7 +2012,7 @@ def main():
             return
 
     if args.suffix:
-        # Validate prefix argument
+        # Validate suffix argument
         if len(args.suffix) < 1:
             print("Error: --suffix must be at least 1 character long.")
             return
@@ -2172,6 +2172,9 @@ def create_config_from_args(args) -> VanityConfig:
     elif args.prefix:
         # If only --prefix is specified, use PREFIX mode (no pattern requirement)
         mode = VanityMode.PREFIX
+    elif args.suffix:
+        # If only --prefix is specified, use PREFIX mode (no pattern requirement)
+        mode = VanityMode.SUFFIX
     elif args.pattern_2:
         mode = VanityMode.VANITY_2
         vanity_length = 2
@@ -2226,6 +2229,7 @@ def create_config_from_args(args) -> VanityConfig:
         mode=mode,
         target_first_two=args.first_two,
         target_prefix=args.prefix,
+        target_suffix=args.suffix,
         vanity_length=vanity_length,
         max_iterations=max_iterations,
         max_time=args.time,
