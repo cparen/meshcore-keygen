@@ -181,6 +181,7 @@ class KeyInfo:
     matching_pattern: str
     first_8_hex: str
     last_8_hex: str
+    seed_hex: str
 
 
 @dataclass
@@ -384,15 +385,16 @@ class Ed25519KeyGenerator:
         public_key = crypto_scalarmult_ed25519_base_noclamp(bytes(clamped))
         
         # Step 5: Create 64-byte private key [clamped_scalar][random_filler]
-        filler = random_bytes(32)
+        #filler = random_bytes(32)
+        filler = digest[32:64] # correct algorithm
         private_key = bytes(clamped) + filler
         
-        return public_key, private_key
+        return public_key, private_key, seed
     
     @staticmethod
     def generate_single_key(config: VanityConfig) -> Optional[KeyInfo]:
         """Generate a single Ed25519 key in MeshCore format."""
-        public_bytes, private_bytes = Ed25519KeyGenerator.generate_meshcore_keypair()
+        public_bytes, private_bytes, seed = Ed25519KeyGenerator.generate_meshcore_keypair()
         public_hex = public_bytes.hex()
         
         if KeyValidator.check_vanity_pattern(public_hex, config):
@@ -403,7 +405,8 @@ class Ed25519KeyGenerator:
                 private_bytes=private_bytes,
                 matching_pattern=public_hex[:8],
                 first_8_hex=public_hex[:8],
-                last_8_hex=public_hex[-8:]
+                last_8_hex=public_hex[-8:],
+                seed_hex=seed.hex()
             )
         
         return None
@@ -411,7 +414,7 @@ class Ed25519KeyGenerator:
     @staticmethod
     def generate_any_key() -> KeyInfo:
         """Generate any Ed25519 key in MeshCore format (no pattern constraints)."""
-        public_bytes, private_bytes = Ed25519KeyGenerator.generate_meshcore_keypair()
+        public_bytes, private_bytes, seed = Ed25519KeyGenerator.generate_meshcore_keypair()
         public_hex = public_bytes.hex()
         
         return KeyInfo(
@@ -421,7 +424,8 @@ class Ed25519KeyGenerator:
             private_bytes=private_bytes,
             matching_pattern=public_hex[:8],
             first_8_hex=public_hex[:8],
-            last_8_hex=public_hex[-8:]
+            last_8_hex=public_hex[-8:],
+            seed_hex=seed.hex()
         )
     
     @staticmethod
@@ -934,7 +938,7 @@ def worker_process_batch(worker_id: int, config: VanityConfig, shared_state: Dic
                 tracker.update(worker_id, total_attempts + attempt)
             
             # Generate a single key and check both main pattern and watchlist
-            public_bytes, private_bytes = Ed25519KeyGenerator.generate_meshcore_keypair()
+            public_bytes, private_bytes, seed = Ed25519KeyGenerator.generate_meshcore_keypair()
             
             # Fast pattern checking using direct byte comparisons where possible
             main_pattern_match = False
@@ -978,7 +982,8 @@ def worker_process_batch(worker_id: int, config: VanityConfig, shared_state: Dic
                         private_bytes=private_bytes,
                         matching_pattern=pattern.pattern,
                         first_8_hex=public_hex[:8],
-                        last_8_hex=public_hex[-8:]
+                        last_8_hex=public_hex[-8:],
+                        seed_hex=seed.hex()
                     )
                     
                     # Save watchlist key
@@ -997,7 +1002,8 @@ def worker_process_batch(worker_id: int, config: VanityConfig, shared_state: Dic
                     private_bytes=private_bytes,
                     matching_pattern=public_hex[:8],
                     first_8_hex=public_hex[:8],
-                    last_8_hex=public_hex[-8:]
+                    last_8_hex=public_hex[-8:],
+                    seed_hex=seed.hex()
                 )
                 
                 print(f"Worker {worker_id}: Found valid MeshCore Ed25519 key!")
@@ -1573,7 +1579,8 @@ class MeshCoreKeyGenerator:
         
         meshcore_data = {
             "public_key": key_info.public_hex,
-            "private_key": key_info.private_hex
+            "private_key": key_info.private_hex,
+            "seed": key_info.seed
         }
         
         with open(json_filename, 'w') as f:
@@ -2120,6 +2127,7 @@ def main():
         print(f"Last 8 hex:      {key_info.last_8_hex}")
         print(f"\nPublic Key (hex):\n{key_info.public_hex}")
         print(f"\nPrivate Key (hex):\n{key_info.private_hex}")
+        print(f"\nSeed (hex):\n{key_info.seed_hex}")
         
         # Verify the key works
         is_valid = Ed25519KeyGenerator.verify_key_compatibility(key_info.private_hex, key_info.public_hex)
